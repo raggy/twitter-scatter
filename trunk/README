@@ -1,0 +1,51 @@
+ABSTRACT
+========
+
+A student project which set about to explore visualising the
+twitter public timeline <http://twitter.com/public_timeline>.
+
+
+INSTALLING
+==========
+
+As root:
+
+# chmod +x /path/to/twitter-scatter
+# cp -v /path/to/twitter-scatter /usr/bin/twitter-scatter
+
+
+REQUIREMENTS
+============
+
+twitter-scatter requires:
+- python <http://python.org/>
+- pygame <http://pygame.org/>
+- python-twitter <http://code.google.com/p/python-twitter>
+
+
+CONFIGURING
+===========
+
+Open up twitter-scatter in your favourite text-editor. The following
+configuration options are available near the top of the file:
+
+WIDTH = 1024
+HEIGHT = 600
+FULLSCREEN = 0 # Set to '1' to start fullscreen
+
+
+USING
+=====
+
+To run the application, from the terminal, type:
+
+$ twitter-scatter
+
+
+CONTACT
+=======
+
+Author: Ben Davis <its.hip@gmail.com> 
+
+
+See also: COPYING
