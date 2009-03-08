@@ -1,0 +1,159 @@
+#!/usr/bin/env python
+
+WIDTH = 1024
+HEIGHT = 600
+FULLSCREEN = 0
+
+import twitter
+import pygame
+import random
+import math
+import StringIO
+
+from urllib2 import Request, urlopen, URLError, HTTPError
+from threading import Thread
+
+pygame.init()
+
+def draw_line(screen, colour, start, angle, length):
+    x = (-math.sin(angle) * length) + start[0]
+    y = (math.cos(angle) * length) + start[1]
+    end = (x, y)
+    pygame.draw.aaline(screen, colour, start, end)
+#    pygame.draw.line(screen, colour, start, end, 4)
+    return end
+
+def draw_letter(screen, colour, start, angle, font, letter):
+    x = (math.cos(angle) * font.size(letter)[0]) + start[0]
+    y = (math.sin(angle) * font.size(letter)[1]) + start[1]
+    end = (x, y)
+    text = font.render(letter, True, colour)
+    screen.blit(pygame.transform.rotate(text, math.degrees(angle)), start)
+#    screen.blit(text, start)
+    return end
+
+class Status(Thread):
+    def __init__(self, screen, font, status, position):
+        Thread.__init__(self)
+        self.screen = screen
+        self.font = font
+        self.status = status
+        self.position = position
+        self.area = pygame.rect.Rect(position[0] - 24 , position[1] - 24, 48, 48)
+        self.image = None
+        self.hovering = False
+
+    def run(self):
+        self.get_profile_img()
+        self.render_profile_img()
+
+    def render_text(self):
+        """Renders the font centred above the point specified"""
+        for i in range(3):
+            try:
+                render = font.render(self.status.text, True, (255, 255, 255))
+                width, height = render.get_size()
+                self.screen.blit(render, (self.position[0] - (width / 2), self.position[1] + 24))
+                break
+            except:
+                pass
+        else:
+            print "Couldn't fetch status text."
+
+    def get_profile_img(self):
+        req = Request(self.status.user.GetProfileImageUrl())
+        # Try to fetch profile image successively
+        while True:
+            try:
+                f = urlopen(req)
+                buffer = StringIO.StringIO(f.read())
+                self.image = pygame.transform.scale(pygame.image.load(buffer), (48, 48))
+                break
+            except:
+                pygame.time.wait(1000)
+
+    def render_profile_img(self):
+        """Renders the profile image for status.user"""
+        # If the image has already been downloaded
+        if self.image is not None:
+            width, height = self.image.get_size()
+            # Display it centred at self.position
+            self.screen.blit(self.image, (self.position[0] - (width / 2), self.position[1] - (height / 2)))
+
+def angle_to_xy(start, end):
+    return (math.atan2(end[1] - start[1], end[0] - start[0]) + math.pi / 2) % (math.pi * 2)
+
+if __name__ == "__main__":
+    api = twitter.Api()
+    # Set the caching to 60 seconds
+    api.SetCacheTimeout(60)
+    size = WIDTH, HEIGHT
+#    size = width, height = 100, 100
+    pygame.display.set_caption("Twitter Scatter")
+    screen = pygame.display.set_mode(size, pygame.FULLSCREEN * FULLSCREEN)
+    overlay = pygame.Surface(size, 0, screen)
+    overlay.set_alpha(5)
+    overlay.fill((0, 0, 0))
+    clock = pygame.time.Clock()
+    direction = 1
+    position = (width/2, height/2)
+    angle_offset = (math.pi * 2 / 3)
+    i = 0
+    font = pygame.font.Font(pygame.font.match_font('sans'), 12)
+    status_list = []
+    while True:
+        # If it hasn't been 60 seconds yet, wait until it has
+        # When idle, hover around last status
+        # Get the public timeline from twitter
+        timeline = api.GetPublicTimeline()
+        for status in timeline:
+            # Set random angle (maybe should be based on a variable within status?)
+            angle = random.random() * math.pi * 2
+#            bounced_top = bounced_bottom = bounced_left = bounced_right = False
+            for letter in status.text:
+                value = ord(letter.upper())
+                # toggle direction
+                direction = direction ^ 1 ^ -1
+                # draw a line of length value / 10
+                position = draw_line(screen, (255, 255, 255), position, angle + (angle_offset * direction), (value % 100) / 10)
+                # If line is heading off-screen
+                if position[0] < 10 or position [1] < 10 or position[0] > width - 10 or position[1] > height - 10:
+                    # Redirect it towards the centre of the screen
+                    angle = angle_to_xy(position, (width / 2, height / 2))
+                # Flip the buffer
+                pygame.display.flip()
+#                # Output screen to icon!
+#                pygame.display.set_icon(screen)
+                # For every 10 frames
+                if i == 10:
+                    # Add the overlay (produces the fade effect)
+                    # To slow down the fade, increase the check i == 10
+                    screen.blit(overlay, (0, 0))
+                    i = 0
+                i += 1
+
+                # Check events 
+                for event in pygame.event.get():
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            raise SystemExit
+                    elif event.type == pygame.MOUSEMOTION:
+                        for status in status_list:
+                            # If mouse is hovering over a status icon:
+                            if status.area.contains(pygame.rect.Rect(event.dict['pos'], (1, 1))):
+                                if not status.hovering:
+                                    status.render_profile_img()
+                                    status.render_text()
+                                    status.hovering = True
+                            else:
+                                status.hovering = False
+
+                # Cap framerate at 60 fps
+                clock.tick(60)
+            status_list.append(Status(screen, font, status, position))
+            status_list[-1].start()
+            
+# Disseminate
+#
+#
+#
