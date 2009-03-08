@@ -1,7 +1,22 @@
 #!/usr/bin/env python
+#
+# Copyright 2009 Ben Davis. All Rights Reserved.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-WIDTH = 1024
-HEIGHT = 600
+WIDTH = 640
+HEIGHT = 480
 FULLSCREEN = 0
 
 import twitter
@@ -20,16 +35,6 @@ def draw_line(screen, colour, start, angle, length):
     y = (math.cos(angle) * length) + start[1]
     end = (x, y)
     pygame.draw.aaline(screen, colour, start, end)
-#    pygame.draw.line(screen, colour, start, end, 4)
-    return end
-
-def draw_letter(screen, colour, start, angle, font, letter):
-    x = (math.cos(angle) * font.size(letter)[0]) + start[0]
-    y = (math.sin(angle) * font.size(letter)[1]) + start[1]
-    end = (x, y)
-    text = font.render(letter, True, colour)
-    screen.blit(pygame.transform.rotate(text, math.degrees(angle)), start)
-#    screen.blit(text, start)
     return end
 
 class Status(Thread):
@@ -87,8 +92,7 @@ if __name__ == "__main__":
     api = twitter.Api()
     # Set the caching to 60 seconds
     api.SetCacheTimeout(60)
-    size = WIDTH, HEIGHT
-#    size = width, height = 100, 100
+    size = width, height = WIDTH, HEIGHT
     pygame.display.set_caption("Twitter Scatter")
     screen = pygame.display.set_mode(size, pygame.FULLSCREEN * FULLSCREEN)
     overlay = pygame.Surface(size, 0, screen)
@@ -102,8 +106,9 @@ if __name__ == "__main__":
     font = pygame.font.Font(pygame.font.match_font('sans'), 12)
     status_list = []
     while True:
-        # If it hasn't been 60 seconds yet, wait until it has
-        # When idle, hover around last status
+#        # IDEA:
+#        # If it hasn't been 60 seconds yet, wait until it has
+#        # When idle, hover around last status
         # Get the public timeline from twitter
         timeline = api.GetPublicTimeline()
         for status in timeline:
@@ -122,8 +127,6 @@ if __name__ == "__main__":
                     angle = angle_to_xy(position, (width / 2, height / 2))
                 # Flip the buffer
                 pygame.display.flip()
-#                # Output screen to icon!
-#                pygame.display.set_icon(screen)
                 # For every 10 frames
                 if i == 10:
                     # Add the overlay (produces the fade effect)
@@ -152,8 +155,3 @@ if __name__ == "__main__":
                 clock.tick(60)
             status_list.append(Status(screen, font, status, position))
             status_list[-1].start()
-            
-# Disseminate
-#
-#
-#
