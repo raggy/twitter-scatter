@@ -15,8 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-WIDTH = 640
-HEIGHT = 480
+WIDTH = 1024
+HEIGHT = 600
 FULLSCREEN = 0
 
 import twitter
@@ -31,20 +31,36 @@ from threading import Thread
 pygame.init()
 
 def draw_line(screen, colour, start, angle, length):
+    """Draw a line on surface 'screen' from position 'start' with a specified
+        angle, length and colour.
+    """
     x = (-math.sin(angle) * length) + start[0]
     y = (math.cos(angle) * length) + start[1]
     end = (x, y)
+    # Draw an anti-aliased line from start to end
     pygame.draw.aaline(screen, colour, start, end)
+    # Return with coordinates of the end of the line
     return end
 
-class Status(Thread):
+class Update(Thread):
+    """Class which is instantiated for each new status update.
+    
+    The object is passed the screen surface to draw upon, a font to draw text
+    with, the python-twitter status object to take information from and the
+    centre position at which it should be drawn.
+    
+    Statuses are modelled as threads so that loading the profile image does not
+    cause significant delay to the rest of the application.
+    """
     def __init__(self, screen, font, status, position):
         Thread.__init__(self)
         self.screen = screen
         self.font = font
         self.status = status
         self.position = position
+        # Define the area where the profile image will be drawn.
         self.area = pygame.rect.Rect(position[0] - 24 , position[1] - 24, 48, 48)
+        # Image hasn't been fetched yet
         self.image = None
         self.hovering = False
 
@@ -53,19 +69,16 @@ class Status(Thread):
         self.render_profile_img()
 
     def render_text(self):
-        """Renders the font centred above the point specified"""
-        for i in range(3):
-            try:
-                render = font.render(self.status.text, True, (255, 255, 255))
-                width, height = render.get_size()
-                self.screen.blit(render, (self.position[0] - (width / 2), self.position[1] + 24))
-                break
-            except:
-                pass
-        else:
-            print "Couldn't fetch status text."
+        """Renders the status text centred below the point specified"""
+        # Render the font to a surface
+        render = font.render(self.status.text, True, (255, 255, 255))
+        # Get the width and height of the render
+        width, height = render.get_size()
+        # Draw the render centred below the profile image
+        self.screen.blit(render, (self.position[0] - (width / 2), self.position[1] + 24))
 
     def get_profile_img(self):
+        """Fetches the updater's profile image from twitter"""
         req = Request(self.status.user.GetProfileImageUrl())
         # Try to fetch profile image successively
         while True:
@@ -74,7 +87,9 @@ class Status(Thread):
                 buffer = StringIO.StringIO(f.read())
                 self.image = pygame.transform.scale(pygame.image.load(buffer), (48, 48))
                 break
+            # If it fails to fetch profile image
             except:
+                # Wait one second before trying again
                 pygame.time.wait(1000)
 
     def render_profile_img(self):
@@ -86,46 +101,56 @@ class Status(Thread):
             self.screen.blit(self.image, (self.position[0] - (width / 2), self.position[1] - (height / 2)))
 
 def angle_to_xy(start, end):
+    """Returns the angle between start and end"""
     return (math.atan2(end[1] - start[1], end[0] - start[0]) + math.pi / 2) % (math.pi * 2)
 
 if __name__ == "__main__":
     api = twitter.Api()
-    # Set the caching to 60 seconds
+    # Since the public timeline is updated only every 60 seconds
+    # We should cache our data for 60 seconds to prevent flooding the servers
     api.SetCacheTimeout(60)
     size = width, height = WIDTH, HEIGHT
     pygame.display.set_caption("Twitter Scatter")
+    # Initialise the pygame screen
     screen = pygame.display.set_mode(size, pygame.FULLSCREEN * FULLSCREEN)
+    # Initialise the overlay surface, which will be used to gradually fade the
+    # pygame screen to black
     overlay = pygame.Surface(size, 0, screen)
     overlay.set_alpha(5)
     overlay.fill((0, 0, 0))
+    # Initialise a pygame clock, which will be used to cap the framerate
     clock = pygame.time.Clock()
+    # direction is toggled between 1 and -1 to offset the angle of the line
     direction = 1
-    position = (width/2, height/2)
+    # Draw the first line from the centre of the screen
+    # position will always be the (x, y) of the end of the last line drawn
+    position = (width / 2, height / 2)
+    # Set the angle of the offset drawn to 120 degrees
     angle_offset = (math.pi * 2 / 3)
     i = 0
+    # Draw all update text in a sans font
     font = pygame.font.Font(pygame.font.match_font('sans'), 12)
-    status_list = []
+    updates = []
     while True:
-#        # IDEA:
-#        # If it hasn't been 60 seconds yet, wait until it has
-#        # When idle, hover around last status
         # Get the public timeline from twitter
         timeline = api.GetPublicTimeline()
+        # For each status fetched
         for status in timeline:
-            # Set random angle (maybe should be based on a variable within status?)
+            # Set line to draw at a random angle
             angle = random.random() * math.pi * 2
-#            bounced_top = bounced_bottom = bounced_left = bounced_right = False
+            # For each letter in the current status
             for letter in status.text:
                 value = ord(letter.upper())
                 # toggle direction
                 direction = direction ^ 1 ^ -1
-                # draw a line of length value / 10
-                position = draw_line(screen, (255, 255, 255), position, angle + (angle_offset * direction), (value % 100) / 10)
+                # draw a line of length ((value - 10) / 8)
+                # value is also modulo 100 to avoid drawing very long lines
+                position = draw_line(screen, (255, 255, 255), position, angle + (angle_offset * direction), ((value % 100) - 10) / 8)
                 # If line is heading off-screen
                 if position[0] < 10 or position [1] < 10 or position[0] > width - 10 or position[1] > height - 10:
                     # Redirect it towards the centre of the screen
                     angle = angle_to_xy(position, (width / 2, height / 2))
-                # Flip the buffer
+                # Flip the display buffer
                 pygame.display.flip()
                 # For every 10 frames
                 if i == 10:
@@ -138,22 +163,32 @@ if __name__ == "__main__":
                 # Check events 
                 for event in pygame.event.get():
                     if event.type == pygame.KEYDOWN:
+                        # If user pressed the 'esc' key
                         if event.key == pygame.K_ESCAPE:
+                            # Exit
                             raise SystemExit
+                    # If user pressed the close button
                     elif event.type == pygame.QUIT:
+                        # Exit
                         raise SystemExit
+                    # If user moved the mouse
                     elif event.type == pygame.MOUSEMOTION:
-                        for status in status_list:
-                            # If mouse is hovering over a status icon:
-                            if status.area.contains(pygame.rect.Rect(event.dict['pos'], (1, 1))):
-                                if not status.hovering:
-                                    status.render_profile_img()
-                                    status.render_text()
-                                    status.hovering = True
+                        # For each update
+                        for update in updates:
+                            # If mouse is hovering over the profile image:
+                            if update.area.contains(pygame.rect.Rect(event.dict['pos'], (1, 1))):
+                                # If was not hovering over image last frame
+                                if not update.hovering:
+                                    # Redraw the profile image
+                                    update.render_profile_img()
+                                    # Redraw the status text
+                                    update.render_text()
+                                    update.hovering = True
                             else:
-                                status.hovering = False
+                                update.hovering = False
 
-                # Cap framerate at 60 fps
-                clock.tick(60)
-            status_list.append(Status(screen, font, status, position))
-            status_list[-1].start()
+                # Cap framerate at 30 fps
+                clock.tick(30)
+            # Add update to list of updates
+            updates.append(Update(screen, font, status, position))
+            updates[-1].start()
